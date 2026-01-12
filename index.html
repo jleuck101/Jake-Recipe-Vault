@@ -1179,9 +1179,12 @@
 
   async function init(){
     // Service worker (offline + faster repeat loads)
-    if("serviceWorker" in navigator){
-      navigator.serviceWorker.register("./sw.js").catch(()=>{});
-    }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("sw.js", { scope: "./" })
+        .catch(() => {});
+}
+
 
     const local = loadLocal();
     if(local){
