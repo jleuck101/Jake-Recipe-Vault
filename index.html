@@ -1966,15 +1966,8 @@ if(window.FB && window.FB.enabled){
     applyCardSize();
 
 
-    $("resetBtn").onclick = resetToSite;
-    $("exportBtn").onclick = downloadJSON;
     $("newBtn").onclick = newRecipe;
 
-    $("importFile").addEventListener("change", async (e)=>{
-      const f=e.target.files?.[0]; if(!f) return;
-      try{ await importJSON(f); }catch(err){ alert("Import failed: "+(err?.message||err)); }
-      e.target.value="";
-    });
 
     // Viewer buttons
     $("overlay").onclick = closeViewer;
