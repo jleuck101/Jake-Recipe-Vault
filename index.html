@@ -690,6 +690,22 @@
   const SCALE_STORE_KEY = "rv.scaleById.v1";
   
   const $ = (id)=>document.getElementById(id);
+  function waitForFB(timeoutMs = 4000){
+  if(window.FB && window.FB.enabled) return Promise.resolve(true);
+  return new Promise((resolve)=>{
+    const start = Date.now();
+    const t = setInterval(()=>{
+      if(window.FB && window.FB.enabled){
+        clearInterval(t);
+        resolve(true);
+      }else if(Date.now() - start > timeoutMs){
+        clearInterval(t);
+        resolve(false);
+      }
+    }, 50);
+  });
+}
+
   const state = {
   recipes: [],
   selectedId: null,
@@ -811,11 +827,13 @@ function refreshEditSuggestions(){
   function setCloudStatus(){
   const el = $("cloud");
   if(!el) return;
-  const on = !!(window.FB && FB.enabled);
+  const on = !!(window.FB && window.FB.enabled);
   el.textContent = on
     ? `cloud: yes • recipes: ${state.recipes.length}`
     : `cloud: no • recipes: ${state.recipes.length}`;
 }
+
+
 
 
   // Snackbar (Undo)
@@ -844,12 +862,12 @@ function refreshEditSuggestions(){
 let fbSyncTimer = null;
 
 function scheduleFirebaseSync(){
-  if(!window.FB || !FB.enabled) return;
+  if(!window.FB || !window.FB.enabled) return;
   if(fbSyncTimer) clearTimeout(fbSyncTimer);
 
   fbSyncTimer = setTimeout(async ()=>{
     try{
-      await FB.syncAll(state.recipes);
+      await window.FB.syncAll(state.recipes);
       // keep it quiet (no toast spam)
     }catch(e){
       console.warn("Firebase sync failed", e);
@@ -1892,9 +1910,10 @@ rebuildTagCaches();
 refreshEditSuggestions();
 
 // Cloud sync (Firebase / Firestore)
-if(window.FB && FB.enabled){
+await waitForFB();
+if(window.FB && window.FB.enabled){
   try{
-    const cloud = await FB.loadAll();
+    const cloud = await window.FB.loadAll();
 
     if(cloud && cloud.length){
       // Cloud is source of truth
@@ -1906,16 +1925,13 @@ if(window.FB && FB.enabled){
       toast("synced from cloud");
     }else{
       // First time: seed cloud with what we have
-      await FB.syncAll(state.recipes);
+      await window.FB.syncAll(state.recipes);
       toast("cloud ready");
     }
 
-    setCloudStatus();
-
-
     // Live updates from other devices
-    if(FB.unsubscribe) FB.unsubscribe();
-    FB.unsubscribe = FB.subscribe((list)=>{
+    if(window.FB.unsubscribe) window.FB.unsubscribe();
+    window.FB.unsubscribe = window.FB.subscribe((list)=>{
       // don't overwrite while you're actively editing
       if(state.editOpen) return;
 
@@ -1928,11 +1944,13 @@ if(window.FB && FB.enabled){
       renderGrid();
       if(state.selectedId) renderViewer();
     });
+
   }catch(e){
     console.warn("Firebase load/subscribe failed", e);
     toast("cloud offline");
   }
 }
+
 
 
 
