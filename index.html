@@ -1910,6 +1910,9 @@ if(window.FB && FB.enabled){
       toast("cloud ready");
     }
 
+    setCloudStatus();
+
+
     // Live updates from other devices
     if(FB.unsubscribe) FB.unsubscribe();
     FB.unsubscribe = FB.subscribe((list)=>{
