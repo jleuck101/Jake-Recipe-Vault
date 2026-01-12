@@ -475,6 +475,8 @@
         <option value="cooked">Sort: Most cooked</option>
         <option value="time">Sort: Shortest time</option>
       </select>
+      <button class="btn" id="clearFiltersBtn" title="Clear search + all filters">Clear filters</button>
+
     </div>
     <div class="count"><span id="count">0</span> recipes</div>
   </div>
@@ -792,7 +794,84 @@
 };
 
 
-  const normalizeList = (s)=> (s||"").split(",").map(x=>x.trim()).filter(Boolean);
+// Comma-split helper (keeps original casing)
+const normalizeList = (s)=> (s||"").split(",").map(x=>x.trim()).filter(Boolean);
+
+// Turn "  CHICKEN  THIGHS " into "Chicken Thighs"
+function canonicalTag(s){
+  s = String(s || "").trim().replace(/\s+/g, " ");
+  if(!s) return "";
+
+  // Lowercase then Title Case each word
+  const lower = s.toLowerCase();
+
+  // Keep a few common acronyms uppercase (optional)
+  const ACRONYMS = new Set(["bbq","usa","uk","ai","ip"]); // add/remove as you want
+
+  return lower.split(" ").map(w=>{
+    if(ACRONYMS.has(w)) return w.toUpperCase();
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(" ");
+}
+
+// Accept string OR array, return array of strings
+function toArray(v){
+  if(Array.isArray(v)) return v.map(x=>String(x||"").trim()).filter(Boolean);
+  if(typeof v === "string") return normalizeList(v);
+  if(v == null) return [];
+  return [String(v).trim()].filter(Boolean);
+}
+
+// Canonicalize + de-dupe list values (case-insensitive)
+function canonicalList(v){
+  const arr = toArray(v).map(canonicalTag).filter(Boolean);
+  const seen = new Set();
+  const out = [];
+  for(const x of arr){
+    const k = x.toLowerCase();
+    if(seen.has(k)) continue;
+    seen.add(k);
+    out.push(x);
+  }
+  return out;
+}
+
+// Canonicalize single-value fields like cuisine/course
+function canonicalOne(v){
+  return canonicalTag(String(v||""));
+}
+
+// Optional: run once after loading data to clean it up
+function normalizeAllRecipesInPlace(){
+  state.recipes = (state.recipes || []).map(r=>{
+    return {
+      ...r,
+      cuisine: canonicalOne(r.cuisine),
+      course: canonicalOne(r.course),
+      base: canonicalList(r.base),
+      mainIngredient: canonicalList(r.mainIngredient),
+      appliances: canonicalList(r.appliances), // now stored Title Case too
+      tags: canonicalList(r.tags)
+    };
+  });
+}
+
+
+// Accept either: "chicken" OR "chicken, sausage" OR ["chicken","sausage"]
+function toList(v){
+  if(Array.isArray(v)) return v.map(x=>String(x||"").trim()).filter(Boolean);
+  if(typeof v === "string") return normalizeList(v);
+  return [];
+}
+function toListLower(v){
+  if(Array.isArray(v)) return v.map(x=>String(x||"").trim().toLowerCase()).filter(Boolean);
+  if(typeof v === "string") return normalizeList(String(v).toLowerCase());
+  return [];
+}
+function listToDisplay(v){
+  return toList(v).join(", ");
+}
+
   const uid = ()=> Math.random().toString(36).slice(2,10) + "-" + Date.now().toString(36);
 
 // ---- Edit suggestions (reuse + filter saved values) ----
@@ -818,11 +897,16 @@ function rebuildTagCaches(){
     const co = (r.course || "").trim();
     if(co) courseSet.add(co);
 
-    const b = (r.base || "").trim();
-    if(b) baseSet.add(b);
+  for(const b of toList(r.base)){
+    const bb = String(b||"").trim();
+    if(bb) baseSet.add(bb);
+  }
 
-    const ing = (r.mainIngredient || "").trim();
-    if(ing) ingredientSet.add(ing);
+  for(const ing of toList(r.mainIngredient)){
+    const ii = String(ing||"").trim();
+    if(ii) ingredientSet.add(ii);
+  }
+
 
     for(const m of (r.appliances || [])){
       const mm = String(m || "").trim();
@@ -899,36 +983,64 @@ function replaceLastCommaTokenWith(inputId, value, opts={}){
   const input = $(inputId);
   if(!input) return;
 
-  const lowercase = opts.lowercase ?? false;
   const trailingComma = opts.trailingComma ?? true;
 
   let wanted = String(value || "").trim();
   if(!wanted) return;
-  if(lowercase) wanted = wanted.toLowerCase();
+
+  // Always canonicalize to avoid CHICKEN vs chicken duplicates
+  wanted = canonicalTag(wanted);
 
   const parts = String(input.value || "").split(",");
-  parts[parts.length - 1] = " " + wanted;
+  parts[parts.length - 1] = wanted;
 
-  const normalized = normalizeList(parts.join(",").toLowerCase());
+  const normalized = normalizeList(parts.join(","));
   input.value = normalized.join(", ") + (trailingComma ? ", " : "");
 }
 
+
+
 function refreshEditSuggestions(){
   const cuisineQ = ($("eCuisine")?.value || "").trim();
-  const courseQ = ($("eCourse")?.value || "").trim();
-  const baseQ = ($("eBase")?.value || "").trim();
-  const ingredientQ = ($("eIngredient")?.value || "").trim();
+  const courseQ  = ($("eCourse")?.value || "").trim();
 
-  const methodQ = lastCommaToken($("eAppliances")?.value || "");
-  const tagQ = lastCommaToken($("eTags")?.value || "");
+  const baseEl = $("eBase");
+  const ingEl  = $("eIngredient");
 
-  renderSuggestChips("cuisineSuggestions", ALL_CUISINES, cuisineQ, (v)=>{ $("eCuisine").value = v; });
-  renderSuggestChips("courseSuggestions", ALL_COURSES, courseQ, (v)=>{ $("eCourse").value = v; });
-  renderSuggestChips("baseSuggestions", ALL_BASES, baseQ, (v)=>{ $("eBase").value = v; });
-  renderSuggestChips("ingredientSuggestions", ALL_INGREDIENTS, ingredientQ, (v)=>{ $("eIngredient").value = v; });
+  const baseQ       = lastCommaToken(baseEl?.value || "");
+  const ingredientQ = lastCommaToken(ingEl?.value || "");
+  const methodQ     = lastCommaToken($("eAppliances")?.value || "");
+  const tagQ        = lastCommaToken($("eTags")?.value || "");
 
-  renderSuggestChips("methodSuggestions", ALL_METHODS, methodQ, (v)=>{ replaceLastCommaTokenWith("eAppliances", v, {lowercase:true}); });
-  renderSuggestChips("tagSuggestions", ALL_TAGS, tagQ, (v)=>{ replaceLastCommaTokenWith("eTags", v, {lowercase:true}); });
+  // Only add a trailing ", " automatically if you're already using commas in that field
+  const useCommaMode = (el)=>{
+    const v = String(el?.value || "");
+    return v.includes(",") || v.trim().endsWith(",");
+  };
+
+  renderSuggestChips("cuisineSuggestions", ALL_CUISINES, cuisineQ, (v)=>{
+    $("eCuisine").value = v;
+  });
+
+  renderSuggestChips("courseSuggestions", ALL_COURSES, courseQ, (v)=>{
+    $("eCourse").value = v;
+  });
+
+  renderSuggestChips("baseSuggestions", ALL_BASES, baseQ, (v)=>{
+    replaceLastCommaTokenWith("eBase", v, { trailingComma: useCommaMode(baseEl) });
+  });
+
+  renderSuggestChips("ingredientSuggestions", ALL_INGREDIENTS, ingredientQ, (v)=>{
+    replaceLastCommaTokenWith("eIngredient", v, { trailingComma: useCommaMode(ingEl) });
+  });
+
+  renderSuggestChips("methodSuggestions", ALL_METHODS, methodQ, (v)=>{
+    replaceLastCommaTokenWith("eAppliances", v); // trailing comma behavior kept
+  });
+
+  renderSuggestChips("tagSuggestions", ALL_TAGS, tagQ, (v)=>{
+    replaceLastCommaTokenWith("eTags", v);       // trailing comma behavior kept
+  });
 }
 
 
@@ -1088,14 +1200,14 @@ function saveLocal(opts={}){
     return data.map(r => ({
       id: r.id || uid(),
       title: r.title || "(untitled)",
-      cuisine: r.cuisine || "",
-      course: r.course || "",
-      base: r.base || "",
-      mainIngredient: r.mainIngredient || "",
-      appliances: Array.isArray(r.appliances) ? r.appliances : [],
+      cuisine: canonicalOne(r.cuisine),
+      course: canonicalOne(r.course),
+      base: canonicalList(r.base),
+      mainIngredient: canonicalList(r.mainIngredient),
+      appliances: canonicalList(r.appliances),
       timeMinutes: (typeof r.timeMinutes === "number") ? r.timeMinutes : (r.timeMinutes ? Number(r.timeMinutes) : null),
       dishesCount: (typeof r.dishesCount === "number") ? r.dishesCount : (r.dishesCount ? Number(r.dishesCount) : null),
-      tags: Array.isArray(r.tags) ? r.tags : [],
+      tags: canonicalList(r.tags),
       cookedCount: Number(r.cookedCount || 0),
       lastCookedAt: r.lastCookedAt || null,
       createdAt: r.createdAt || t,
@@ -1114,8 +1226,14 @@ function saveLocal(opts={}){
     const appliances = Array.from(new Set(state.recipes.flatMap(r => r.appliances||[]))).sort();
 
     const courses = Array.from(new Set(state.recipes.map(r => (r.course||"").trim()).filter(Boolean))).sort();
-    const bases = Array.from(new Set(state.recipes.map(r => (r.base||"").trim()).filter(Boolean))).sort();
-    const ingredients = Array.from(new Set(state.recipes.map(r => (r.mainIngredient||"").trim()).filter(Boolean))).sort();
+const bases = Array.from(new Set(
+  state.recipes.flatMap(r => toList(r.base).map(x=>String(x||"").trim()).filter(Boolean))
+)).sort();
+
+const ingredients = Array.from(new Set(
+  state.recipes.flatMap(r => toList(r.mainIngredient).map(x=>String(x||"").trim()).filter(Boolean))
+)).sort();
+
     const tags = Array.from(new Set(state.recipes.flatMap(r => r.tags||[]).map(t=>String(t||"").trim()).filter(Boolean))).sort();
 
     const c = $("cuisineF"), a = $("applianceF");
@@ -1152,8 +1270,8 @@ function saveLocal(opts={}){
 
   function filtered(){
     const q = $("q").value.trim().toLowerCase();
-    const cuisine = $("cuisineF")?.value || "";
-    const appliance = $("applianceF")?.value || "";
+    const cuisine = ($("cuisineF").value || "").trim().toLowerCase();
+    const appliance = ($("applianceF").value || "").trim().toLowerCase();
     const course = $("courseF")?.value || "";
     const base = $("baseF")?.value || "";
     const ingredient = $("ingredientF")?.value || "";
@@ -1162,12 +1280,16 @@ function saveLocal(opts={}){
 
 
     let out = state.recipes.filter(r=>{
-      if(cuisine && (r.cuisine||"").trim()!==cuisine) return false;
-      if(appliance && !(r.appliances||[]).includes(appliance)) return false;
+      if(cuisine && String(r.cuisine||"").trim().toLowerCase() !== cuisine) return false;
+      if(appliance){
+  const arr = (r.appliances || []).map(x => String(x||"").trim().toLowerCase());
+  if(!arr.includes(appliance)) return false;
+}
 
       if(course && (r.course||"").trim()!==course) return false;
-      if(base && (r.base||"").trim()!==base) return false;
-      if(ingredient && (r.mainIngredient||"").trim()!==ingredient) return false;
+if(base && !toList(r.base).includes(base)) return false;
+if(ingredient && !toList(r.mainIngredient).includes(ingredient)) return false;
+
       if(tag && !(r.tags||[]).includes(tag)) return false;
 
       if(maxTime>0 && Number(r.timeMinutes||0)>maxTime) return false;
@@ -1176,12 +1298,35 @@ function saveLocal(opts={}){
 
     });
 
-    const sort = $("sort").value;
-    if(sort==="updated") out.sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0));
-    if(sort==="title") out.sort((a,b)=> (a.title||"").localeCompare(b.title||""));
-    if(sort==="cooked") out.sort((a,b)=> (Number(b.cookedCount||0)-Number(a.cookedCount||0)));
-    if(sort==="time") out.sort((a,b)=> (Number(a.timeMinutes||1e9)-Number(b.timeMinutes||1e9)));
-    return out;
+const sort = $("sort").value;
+
+function titleScore(r){
+  if(!q) return 0;
+  const t = String(r.title||"").toLowerCase();
+  if(!t) return 0;
+  if(t === q) return 3;
+  if(t.startsWith(q)) return 2;
+  if(t.includes(q)) return 1;
+  return 0;
+}
+
+out.sort((a,b)=>{
+  // 1) When searching, prioritize title matches
+  if(q){
+    const sa = titleScore(a), sb = titleScore(b);
+    if(sb !== sa) return sb - sa;
+  }
+
+  // 2) Then apply your selected sort
+  if(sort==="updated") return (b.updatedAt||0)-(a.updatedAt||0);
+  if(sort==="title") return (a.title||"").localeCompare(b.title||"");
+  if(sort==="cooked") return (Number(b.cookedCount||0)-Number(a.cookedCount||0));
+  if(sort==="time") return (Number(a.timeMinutes||1e9)-Number(b.timeMinutes||1e9));
+  return 0;
+});
+
+return out;
+
   }
 
   function setGridColumns(n){
@@ -1616,8 +1761,9 @@ function parseFirstNumberAnywhere(text){
     const info = $("vInfo");
     info.innerHTML = "";
     if(r.course) info.appendChild(pill("course: " + r.course));
-    if(r.base) info.appendChild(pill("base: " + r.base));
-    if(r.mainIngredient) info.appendChild(pill("ingredient: " + r.mainIngredient));
+if(toList(r.base).length) info.appendChild(pill("base: " + listToDisplay(r.base)));
+if(toList(r.mainIngredient).length) info.appendChild(pill("ingredient: " + listToDisplay(r.mainIngredient)));
+
     if((r.appliances||[]).length) info.appendChild(pill("method: " + r.appliances.join(", ")));
 
     if(r.dishesCount != null) info.appendChild(pill("dishes: " + r.dishesCount));
@@ -1684,8 +1830,9 @@ function parseFirstNumberAnywhere(text){
     $("eTitle").value = r.title || "";
     $("eCuisine").value = r.cuisine || "";
     $("eCourse").value = r.course || "";
-    $("eBase").value = r.base || "";
-    $("eIngredient").value = r.mainIngredient || "";
+$("eBase").value = listToDisplay(r.base);
+$("eIngredient").value = listToDisplay(r.mainIngredient);
+
     $("eAppliances").value = (r.appliances||[]).join(", ");
     $("eTime").value = r.timeMinutes ?? "";
     $("eDishes").value = r.dishesCount ?? "";
@@ -1735,14 +1882,14 @@ function parseFirstNumberAnywhere(text){
     const updated = {
       ...state.recipes[idx],
       title: ($("eTitle").value.trim() || "(untitled)"),
-      cuisine: $("eCuisine").value.trim(),
-      course: $("eCourse").value.trim(),
-      base: $("eBase").value.trim(),
-      mainIngredient: $("eIngredient").value.trim(),
-      appliances: normalizeList($("eAppliances").value.toLowerCase()),
+      cuisine: canonicalOne($("eCuisine").value),
+      course: canonicalOne($("eCourse").value),
+      base: canonicalList($("eBase").value),
+      mainIngredient: canonicalList($("eIngredient").value),
+      appliances: canonicalList($("eAppliances").value),
       timeMinutes: $("eTime").value ? Number($("eTime").value) : null,
       dishesCount: $("eDishes").value ? Number($("eDishes").value) : null,
-      tags: normalizeList($("eTags").value.toLowerCase()),
+      tags: canonicalList($("eTags").value),
       imageUrl: $("eImageUrl").value.trim(),
       sourceUrl: $("eSourceUrl").value.trim(),
       servings: $("eServings").value.trim(),
@@ -2238,9 +2385,11 @@ function printCard(){
 const local = loadLocal();
 if(local){
   state.recipes = local;
+  normalizeAllRecipesInPlace();
   toast("loaded local cache");
 }else{
   state.recipes = await loadSiteData();
+  normalizeAllRecipesInPlace();
   saveLocal({skipCloud:true}); // don't push until Firebase confirms
   toast("loaded recipes.json");
 }
@@ -2258,6 +2407,9 @@ if(window.FB && window.FB.enabled){
     if(cloud && cloud.length){
       // Cloud is source of truth
       state.recipes = cloud;
+      normalizeAllRecipesInPlace();
+rebuildTagCaches();
+refreshEditSuggestions();
       saveLocal({skipCloud:true});
       refreshFilterOptions();
       rebuildTagCaches();
@@ -2276,6 +2428,9 @@ if(window.FB && window.FB.enabled){
       if(state.editOpen) return;
 
       state.recipes = list || [];
+      normalizeAllRecipesInPlace();
+rebuildTagCaches();
+refreshEditSuggestions();
       saveLocal({skipCloud:true});
       refreshFilterOptions();
       rebuildTagCaches();
@@ -2299,6 +2454,24 @@ if(window.FB && window.FB.enabled){
       $(id).addEventListener("input", renderGrid);
       $(id).addEventListener("change", renderGrid);
     });
+
+    function clearAllFilters(){
+  $("q").value = "";
+  $("cuisineF").value = "";
+  $("applianceF").value = "";
+  $("maxTime").value = "";
+
+  // If these exist in your version, clear them too (safe if missing)
+  ["courseF","baseF","ingredientF","methodF","tagF"].forEach(id=>{
+    const el = $(id);
+    if(el) el.value = "";
+  });
+
+  renderGrid();
+}
+
+$("clearFiltersBtn").onclick = clearAllFilters;
+
 
     // Card size slider (inverted: right = bigger cards)
     $("size").addEventListener("input", applyCardSize);
