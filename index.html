@@ -436,7 +436,6 @@
   <button class="btn small" id="copyGroceriesBtn" title="Copy ingredients to paste into Apple Reminders">Copy groceries</button>
   <button class="btn small" id="downloadGroceriesBtn" title="Download ingredients as a .txt file">Groceries .txt</button>
   <button class="btn small" id="downloadOneBtn" title="Downloads a clean 1-page recipe card (uses your current scaling)">Download recipe</button>
-  <button class="btn small" id="printBtn">Print</button>
   <button class="btn small" id="cookModeBtn" title="Bigger text + tries to keep screen awake">Cook Mode</button>
   <button class="btn small primary" id="editToggleBtn">Edit</button>
   <button class="btn small danger" id="deleteBtn">Delete</button>
@@ -1789,11 +1788,21 @@ function parseFirstNumberAnywhere(text){
 
     const blob = new Blob([html], {type:"text/html"});
     const url = URL.createObjectURL(blob);
+    // iPhone/iPad Safari often blocks automatic downloads.
+// Fallback: open the file in a new tab so user can Share → Save to Files.
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+if(isIOS){
+  window.open(url, "_blank");
+  toast("Opened recipe card — use Share → Save to Files");
+  return;
+}
+
     const a = document.createElement("a");
     a.href = url;
     a.download = sanitizeFileName(r.title) + ".html";
     a.click();
-    URL.revokeObjectURL(url);
+setTimeout(()=>URL.revokeObjectURL(url), 60000);
+
     toast("downloaded recipe page");
   }
 
@@ -1978,7 +1987,6 @@ $("eTags").addEventListener("focus", refreshEditSuggestions);
     $("markCookedBtn").onclick = markCooked;
     $("deleteBtn").onclick = deleteRecipe;
     $("downloadOneBtn").onclick = downloadOne;
-    $("printBtn").onclick = printOne;
     $("copyGroceriesBtn").onclick = copyGroceries;
     $("downloadGroceriesBtn").onclick = downloadGroceriesTxt;
 
