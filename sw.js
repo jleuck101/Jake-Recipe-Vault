@@ -1,5 +1,5 @@
 // Simple offline cache for Recipe Vault
-const CACHE_NAME = "recipe-vault-cache-v5"; // bump this when you deploy changes
+const CACHE_NAME = "recipe-vault-cache-v6"; // bump this when you deploy changes
 const CORE_ASSETS = [
   "./",
   "./index.html",

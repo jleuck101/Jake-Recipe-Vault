@@ -1781,105 +1781,108 @@ function parseFirstNumberAnywhere(text){
 </html>`;
   }
 
-    function recipeToPrintHTML(r, factor = 1){
-    const title = escapeHtml(r.title || "Recipe");
+function recipeToPrintHTML(r, factor = 1){
+  const title = escapeHtml(r.title || "Recipe");
 
-    const infoBits = [];
-    if(r.cuisine) infoBits.push(escapeHtml(r.cuisine));
-    if(r.timeMinutes) infoBits.push(`${Number(r.timeMinutes)} min`);
-    if(r.servings) infoBits.push(escapeHtml(r.servings));
-    if(Math.abs((factor||1) - 1) > 1e-9) infoBits.push(`Scaled: ${escapeHtml(formatNumberSmart(factor))}×`);
-    const info = infoBits.length ? `<div class="meta">${infoBits.join(" • ")}</div>` : "";
+  const infoBits = [];
+  if(r.cuisine) infoBits.push(escapeHtml(r.cuisine));
+  if(r.timeMinutes) infoBits.push(`${Number(r.timeMinutes)} min`);
+  if(r.servings) infoBits.push(escapeHtml(r.servings));
+  if(Math.abs((factor||1) - 1) > 1e-9) infoBits.push(`Scaled: ${escapeHtml(formatNumberSmart(factor))}×`);
+  const info = infoBits.length ? `<div class="meta">${infoBits.join(" • ")}</div>` : "";
 
-    function ingredientsHTML(){
-      const lines = parseIngredientLines(r.ingredients || "");
-      if(lines.length === 0) return `<div class="muted">—</div>`;
-      const lis = lines.map(line => {
-        const scaled = scaleIngredientLine(line, factor);
-        return `<li>${escapeHtml(scaled)}</li>`;
-      }).join("");
-      return `<ul class="list">${lis}</ul>`;
-    }
-
-    function directionsHTML(){
-  const lines = parseIngredientLines(r.directions || r.instructions || "");
-  if(lines.length === 0) return `<div class="muted">—</div>`;
-
-  let out = `<ol class="steps">`;
-  for(const line of lines){
-    if(line.startsWith("## ")){
-      // close list, add subhead, reopen list
-      out += `</ol><h3>${escapeHtml(line.replace(/^##\\s*/, ""))}</h3><ol class="steps">`;
-      continue;
-    }
-    out += `<li>${escapeHtml(line)}</li>`;
+  function ingredientsHTML(){
+    const lines = parseIngredientLines(r.ingredients || "");
+    if(lines.length === 0) return `<div class="muted">—</div>`;
+    const lis = lines.map(line => {
+      const scaled = scaleIngredientLine(line, factor);
+      return `<li>${escapeHtml(scaled)}</li>`;
+    }).join("");
+    return `<ul class="list">${lis}</ul>`;
   }
-  out += `</ol>`;
-  return out;
-}
 
+  function directionsHTML(){
+    const lines = parseIngredientLines(r.directions || r.instructions || "");
+    if(lines.length === 0) return `<div class="muted">—</div>`;
 
-    const notes = (r.notes || "").trim();
-    const notesHTML = notes
-      ? `<div class="notes"><h2>Notes</h2><div class="noteText">${escapeHtml(notes).replace(/\n/g,"<br>")}</div></div>`
-      : "";
+    let out = `<ol class="steps">`;
+    for(const line of lines){
+      if(line.startsWith("## ")){
+        out += `</ol><h3>${escapeHtml(line.replace(/^##\\s*/, ""))}</h3><ol class="steps">`;
+        continue;
+      }
+      out += `<li>${escapeHtml(line)}</li>`;
+    }
+    out += `</ol>`;
+    return out;
+  }
 
-    return `<!doctype html>
+  const notes = (r.notes || "").trim();
+  const notesHTML = notes
+    ? `<div class="notes"><h2>Notes</h2><div class="noteText">${escapeHtml(notes).replace(/\n/g,"<br>")}</div></div>`
+    : "";
+
+  return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>${title}</title>
 <style>
-  /* Screen defaults */
   :root{ color-scheme: light; }
   html, body{ margin:0; padding:0; background:#fff; color:#000; }
   body{
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-    line-height: 1.25;
-    font-size: 12pt;
+    line-height: 1.22;
+    font-size: 10.5pt; /* smaller to fit more */
   }
-  .page{ padding: 18px 18px 22px; }
-  h1{ margin:0 0 6px; font-size: 20pt; line-height: 1.1; }
-  .meta{ margin: 0 0 12px; font-size: 11pt; }
-  h2{ margin: 0 0 6px; font-size: 13pt; }
-  .grid{
-    display:grid;
-    grid-template-columns: 0.95fr 1.05fr;
-    gap: 16px;
-    align-items:start;
+
+  .page{ padding: 14px 14px 16px; }
+
+  h1{
+    margin: 0 0 6px;
+    font-size: 16pt;
+    line-height: 1.1;
   }
+
+  .meta{
+    margin: 0 0 10px;
+    font-size: 10pt;
+  }
+
+  /* Single-column stack: Ingredients then Directions (no grid gaps) */
+  .stack{ display:block; }
+
   .box{
     border: 1px solid #000;
     border-radius: 10px;
-    padding: 12px 12px 10px;
+    padding: 10px 10px 8px;
+    margin: 0 0 10px;
   }
-  .list{ margin: 0; padding-left: 18px; }
-  .list li{ margin: 0 0 4px; }
-  .steps{ margin: 0; padding-left: 22px; }
-  .steps li{ margin: 0 0 7px; }
-  .notes{ margin-top: 14px; }
-  .noteText{ font-size: 11pt; }
-  .muted{ color:#000; } /* keep everything black */
 
-  /* Avoid awkward breaks */
-  .box, .notes{ break-inside: avoid; page-break-inside: avoid; }
-  li{ break-inside: avoid; page-break-inside: avoid; }
-  h1, h2{ break-after: avoid; page-break-after: avoid; }
+  h2{ margin: 0 0 6px; font-size: 12pt; }
+  h3{ margin: 10px 0 6px; font-size: 11pt; }
+
+  .list{ margin: 0; padding-left: 16px; }
+  .list li{ margin: 0 0 3px; }
+
+  .steps{ margin: 0; padding-left: 18px; }
+  .steps li{ margin: 0 0 5px; }
+
+  .notes{ margin-top: 10px; }
+  .noteText{ font-size: 10pt; }
+
+  .muted{ color:#000; }
+
+  /* IMPORTANT: allow natural flowing across pages (prevents giant gaps) */
+  .box, .notes, li{ break-inside: auto; page-break-inside: auto; }
+  h1, h2, h3{ break-after: avoid; page-break-after: avoid; }
 
   /* Print rules */
-  @page { margin: 0.5in; }
+  @page { margin: 0.45in; }
   @media print{
     .page{ padding: 0; }
-    .box{ border: 1px solid #000; border-radius: 0; }
-    .grid{ grid-template-columns: 1fr 1fr; gap: 14px; }
     a{ color:#000; text-decoration:none; }
-  }
-
-  /* Mobile: stack columns */
-  @media (max-width: 760px){
-    .grid{ grid-template-columns: 1fr; }
-    .box{ border-radius: 12px; }
   }
 </style>
 </head>
@@ -1888,7 +1891,7 @@ function parseFirstNumberAnywhere(text){
     <h1>${title}</h1>
     ${info}
 
-    <div class="grid">
+    <div class="stack">
       <div class="box">
         <h2>Ingredients</h2>
         ${ingredientsHTML()}
@@ -1904,7 +1907,8 @@ function parseFirstNumberAnywhere(text){
   </div>
 </body>
 </html>`;
-  }
+}
+
 
 
 
