@@ -609,7 +609,79 @@
   <button id="snackUndo" class="btn small">Undo</button>
 </div>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    getDocs,
+    writeBatch,
+    doc,
+    onSnapshot,
+    query
+  } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAFgODyKQFacEO3xfslhTeeU4n2hKcAy2s",
+    authDomain: "jake-recipes.firebaseapp.com",
+    projectId: "jake-recipes",
+    storageBucket: "jake-recipes.firebasestorage.app",
+    messagingSenderId: "337488882837",
+    appId: "1:337488882837:web:78b7ad6a163eaac4b3bf9c",
+    measurementId: "G-1PQX8MWL3J"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Minimal helpers exposed to your existing (non-module) script
+  window.FB = {
+    enabled: true,
+
+    async loadAll(){
+      const snap = await getDocs(collection(db, "recipes"));
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    },
+
+    // Make cloud exactly match local (writes all + deletes removed docs)
+    async syncAll(recipes){
+      const col = collection(db, "recipes");
+      const snap = await getDocs(col);
+
+      const existingIds = new Set(snap.docs.map(d => d.id));
+      const desiredIds = new Set((recipes || []).map(r => r?.id).filter(Boolean));
+
+      const batch = writeBatch(db);
+
+      // Delete docs that no longer exist locally
+      for(const id of existingIds){
+        if(!desiredIds.has(id)){
+          batch.delete(doc(col, id));
+        }
+      }
+
+      // Upsert all local recipes
+      for(const r of (recipes || [])){
+        if(!r || !r.id) continue;
+        batch.set(doc(col, r.id), r);
+      }
+
+      await batch.commit();
+    },
+
+    // Live updates from cloud
+    subscribe(onData){
+      const col = collection(db, "recipes");
+      return onSnapshot(query(col), (snap)=>{
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        onData(list);
+      });
+    }
+  };
+</script>
+
 <script>
+
   const SITE_JSON = "./recipes.json";
   const LS_KEY = "recipe_vault_data_v3_gallery";
   const CHECKS_PREFIX = "rv_ing_checks_v1:"; // per-recipe checkbox state
@@ -759,11 +831,31 @@ function refreshEditSuggestions(){
     snackTimer = null;
   }
 
-function saveLocal(){
+let fbSyncTimer = null;
+
+function scheduleFirebaseSync(){
+  if(!window.FB || !FB.enabled) return;
+  if(fbSyncTimer) clearTimeout(fbSyncTimer);
+
+  fbSyncTimer = setTimeout(async ()=>{
+    try{
+      await FB.syncAll(state.recipes);
+      // keep it quiet (no toast spam)
+    }catch(e){
+      console.warn("Firebase sync failed", e);
+      toast("cloud sync failed");
+    }
+  }, 800);
+}
+
+function saveLocal(opts={}){
   localStorage.setItem(LS_KEY, JSON.stringify(state.recipes));
   rebuildTagCaches();
   refreshEditSuggestions();
+
+  if(!opts.skipCloud) scheduleFirebaseSync();
 }
+
 
   function loadLocal(){
     const raw = localStorage.getItem(LS_KEY);
@@ -1774,19 +1866,60 @@ function parseFirstNumberAnywhere(text){
 }
 
 
-    const local = loadLocal();
-    if(local){
-      state.recipes = local;
-      toast("loaded local edits");
+// Fast start: local cache or recipes.json
+const local = loadLocal();
+if(local){
+  state.recipes = local;
+  toast("loaded local cache");
+}else{
+  state.recipes = await loadSiteData();
+  saveLocal({skipCloud:true}); // don't push until Firebase confirms
+  toast("loaded recipes.json");
+}
+
+refreshFilterOptions();
+rebuildTagCaches();
+refreshEditSuggestions();
+
+// Cloud sync (Firebase / Firestore)
+if(window.FB && FB.enabled){
+  try{
+    const cloud = await FB.loadAll();
+
+    if(cloud && cloud.length){
+      // Cloud is source of truth
+      state.recipes = cloud;
+      saveLocal({skipCloud:true});
+      refreshFilterOptions();
+      rebuildTagCaches();
+      refreshEditSuggestions();
+      toast("synced from cloud");
     }else{
-      state.recipes = await loadSiteData();
-      saveLocal();
-      toast("loaded recipes.json");
+      // First time: seed cloud with what we have
+      await FB.syncAll(state.recipes);
+      toast("cloud ready");
     }
 
-    refreshFilterOptions();
-    rebuildTagCaches();
-    refreshEditSuggestions();
+    // Live updates from other devices
+    if(FB.unsubscribe) FB.unsubscribe();
+    FB.unsubscribe = FB.subscribe((list)=>{
+      // don't overwrite while you're actively editing
+      if(state.editOpen) return;
+
+      state.recipes = list || [];
+      saveLocal({skipCloud:true});
+      refreshFilterOptions();
+      rebuildTagCaches();
+      refreshEditSuggestions();
+      renderGrid();
+      if(state.selectedId) renderViewer();
+    });
+  }catch(e){
+    console.warn("Firebase load/subscribe failed", e);
+    toast("cloud offline");
+  }
+}
+
 
 
     // Hook filters
