@@ -1911,6 +1911,7 @@ if(window.FB && FB.enabled){
       refreshFilterOptions();
       rebuildTagCaches();
       refreshEditSuggestions();
+      $("status").textContent = `cloud: ${window.FB ? "yes" : "no"} • recipes: ${state.recipes.length}`;
       renderGrid();
       if(state.selectedId) renderViewer();
     });
