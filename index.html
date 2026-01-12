@@ -1809,20 +1809,11 @@ setTimeout(()=>URL.revokeObjectURL(url), 60000);
 
 
 function printCard(){
-  const r = getSelected(); if(!r) return;
+  const r = getSelected(); 
+  if(!r) return;
 
-  // Reuse the same HTML builder used for the download card.
-  // If your downloadOne() builds HTML inline, use the same helper it calls.
-  const html =
-    (typeof buildOnePageHTML === "function") ? buildOnePageHTML(r) :
-    (typeof makeOnePageHTML === "function") ? makeOnePageHTML(r) :
-    (typeof onePageHTML === "function") ? onePageHTML(r) :
-    null;
-
-  if(!html){
-    toast("Couldn't find recipe-card HTML builder. Paste downloadOne() here and I'll wire it exactly.");
-    return;
-  }
+  // Use the same clean 1-page card HTML as Download Recipe
+  const html = recipeToStandaloneHTML(r, state.scaleFactor || 1);
 
   const blob = new Blob([html], {type:"text/html;charset=utf-8"});
   const url = URL.createObjectURL(blob);
@@ -1833,7 +1824,7 @@ function printCard(){
     return;
   }
 
-  // Print after load. iOS may not auto-print, but it will open the clean card.
+  // Try to trigger print after it loads (some iOS browsers may block auto-print)
   const t = setInterval(()=>{
     try{
       if(w.document && w.document.readyState === "complete"){
@@ -1841,6 +1832,7 @@ function printCard(){
         setTimeout(()=>{
           w.focus();
           try{ w.print(); }catch(e){}
+          toast("opened print card");
         }, 250);
       }
     }catch(e){
@@ -1850,6 +1842,7 @@ function printCard(){
 
   setTimeout(()=>URL.revokeObjectURL(url), 60000);
 }
+
 
 
   /* Groceries export (Apple Reminders-friendly) */
