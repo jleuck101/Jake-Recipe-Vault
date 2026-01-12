@@ -1260,6 +1260,12 @@ function saveLocal(opts={}){
     return lines;
   }
 
+  function stripLeadingStepNumber(s){
+  // Removes "12. ", "12) ", "12: ", "12 - " and also repeated duplicates like "12. 12. ..."
+  return String(s || "").replace(/^\s*(?:\d+\s*[\.\)\:\-]\s+)+/, "");
+}
+
+
   // -------- Smart scaling helpers --------
 const UNICODE_FRACS = {
   "¼": 1/4, "½": 1/2, "¾": 3/4,
@@ -1725,7 +1731,7 @@ function parseFirstNumberAnywhere(text){
           out += `</ol><h3>${escapeHtml(line.replace(/^##\\s*/, ""))}</h3><ol>`;
           continue;
         }
-        out += `<li>${escapeHtml(line)}</li>`;
+        out += `<li>${escapeHtml(stripLeadingStepNumber(line))}</li>`;
       }
       out += `</ol>`;
       return out;
@@ -1811,7 +1817,7 @@ function recipeToPrintHTML(r, factor = 1){
         out += `</ol><h3>${escapeHtml(line.replace(/^##\\s*/, ""))}</h3><ol class="steps">`;
         continue;
       }
-      out += `<li>${escapeHtml(line)}</li>`;
+      out += `<li>${escapeHtml(stripLeadingStepNumber(line))}</li>`;
     }
     out += `</ol>`;
     return out;
