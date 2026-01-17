@@ -1814,7 +1814,9 @@ return out;
       if(r.timeMinutes) addPillOnce(`${r.timeMinutes}m`);
 
       for(const mi of toList(r.mainIngredient)) addPillOnce(mi);
+      for(const b of toList(r.base)) addPillOnce(b);
       if(r.course) addPillOnce(r.course);
+
 
       for(const t of toList(r.tags)) addPillOnce(t);
 
