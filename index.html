@@ -3140,7 +3140,7 @@ function importRecipeFromPastedText(raw){
     const blob=new Blob([JSON.stringify(state.recipes,null,2)], {type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
-    a.href=url; a.download="recipe-vault-backup.json"; a.click();
+    a.href=url; a.download="recipe-book-backup.json"; a.click();
     URL.revokeObjectURL(url);
     toast("downloaded JSON");
   }
