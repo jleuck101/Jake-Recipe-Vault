@@ -2083,16 +2083,80 @@ function formatNumberSmart(n){
   return dec;
 }
 
+function parseQuantityAnywhere(line){
+  const s = String(line || "");
+  if(/^##\s*/.test(s.trim())) return null; // header line
+
+  // Token that parseNumberToken() understands: 2, 1.5, 1/2, ½, 1½, etc.
+  const TOK = "(?:\\d+(?:\\.\\d+)?|\\d+\\s*\\/\\s*\\d+|[¼½¾⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\\d+[¼½¾⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])";
+
+  // Range anywhere: "... 1-2 ..." or "... 1 to 2 ..."
+  const reRange = new RegExp(`^(.*?)(`+TOK+`)\\s*(?:([\\-–—])|\\b(to)\\b)\\s*(`+TOK+`)(.*)$`, "i");
+  const mR = s.match(reRange);
+  if(mR){
+    const a = parseNumberToken(mR[2].replace(/\s+/g,""));
+    const b = parseNumberToken(mR[5].replace(/\s+/g,""));
+    if(a != null && b != null){
+      const pre = mR[1] || "";
+      const post = mR[6] || "";
+      const sep = mR[3] ? mR[3] : (mR[4] ? " to " : "-");
+      return { isRange:true, a, b, pre, post, sep };
+    }
+  }
+
+  // Mixed anywhere: "... 1 1/2 ..."
+  const reMixed = new RegExp(`^(.*?)(\\d+)\\s+(`+TOK+`)(.*)$`);
+  const mM = s.match(reMixed);
+  if(mM){
+    const whole = Number(mM[2]);
+    const frac = parseNumberToken(mM[3].replace(/\s+/g,""));
+    if(!Number.isNaN(whole) && frac != null){
+      return { isRange:false, v: whole + frac, pre: mM[1] || "", post: mM[4] || "" };
+    }
+  }
+
+  // Single token anywhere: "... 1/2 ..."
+  const reSingle = new RegExp(`^(.*?)(`+TOK+`)(.*)$`);
+  const mS = s.match(reSingle);
+  if(mS){
+    const v = parseNumberToken(mS[2].replace(/\s+/g,""));
+    if(v != null){
+      return { isRange:false, v, pre: mS[1] || "", post: mS[3] || "" };
+    }
+  }
+
+  return null;
+}
+
 function scaleIngredientLine(line, factor){
   if(!factor || Math.abs(factor - 1) < 1e-9) return line;
-  const p = parseLeadingQuantity(line);
-  if(!p) return line;
 
-  if(p.isRange){
-    return `${formatNumberSmart(p.a*factor)}-${formatNumberSmart(p.b*factor)} ${p.rest}`.trim();
+  // Prefer the “leading quantity” behavior (best formatting for normal lines)
+  const pLead = parseLeadingQuantity(line);
+  if(pLead){
+    if(pLead.isRange){
+      return `${formatNumberSmart(pLead.a*factor)}-${formatNumberSmart(pLead.b*factor)} ${pLead.rest}`.trim();
+    }
+    return `${formatNumberSmart(pLead.v*factor)} ${pLead.rest}`.trim();
   }
-  return `${formatNumberSmart(p.v*factor)} ${p.rest}`.trim();
+
+  // Safety: don't scale temps or times even if they appear in ingredients text
+  const lower = String(line||"").toLowerCase();
+  const hasTemp = /(?:°\s*[fc]|degrees?\s*[fc]|\b(fahrenheit|celsius)\b)/i.test(line);
+  const hasTime = /\b(sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours)\b/i.test(lower);
+  if(hasTemp || hasTime) return line;
+
+  // Fallback: scale the first quantity anywhere in the line
+  const pAny = parseQuantityAnywhere(line);
+  if(!pAny) return line;
+
+
+  if(pAny.isRange){
+    return `${pAny.pre}${formatNumberSmart(pAny.a*factor)}${pAny.sep}${formatNumberSmart(pAny.b*factor)}${pAny.post}`.trim();
+  }
+  return `${pAny.pre}${formatNumberSmart(pAny.v*factor)}${pAny.post}`.trim();
 }
+
 
 function parseFirstNumberAnywhere(text){
   if(!text) return null;
