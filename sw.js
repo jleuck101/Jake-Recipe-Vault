@@ -1,10 +1,10 @@
-// Recipe Vault Service Worker (cloud-only friendly)
+// Recipe Book Service Worker (cloud-only friendly)
 // - Caches the app shell so the site loads offline after first visit
 // - Caches images as you view them (so gallery stays usable offline)
 // - Does NOT cache recipes.json (cloud-only)
 
 // Bump this when you deploy changes
-const CACHE_NAME = "recipe-vault-cache-v7";
+const CACHE_NAME = "recipe-book-cache-v7";
 
 // Core "app shell" assets to precache
 const CORE_ASSETS = [

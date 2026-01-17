@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Jake's Recipe Vault</title>
+  <title>Jake's Recipe Book</title>
   <meta name="theme-color" content="#0b0c10" />
   <style>
     :root{
@@ -530,7 +530,7 @@ body.gated #loginGate { display:flex !important; }
   <div class="wrap">
     <div class="row">
       <div>
-        <h1>Jake's Recipe Vault</h1>
+        <h1>Jake's Recipe Book</h1>
         <div class="hint">
           Big-photo gallery • Tap a recipe to open a clean cooking view • <span id="cloud"></span> • <span id="syncBadge" class="syncPill">Signed out</span> <span id="status"></span>
         </div>
@@ -575,7 +575,7 @@ body.gated #loginGate { display:flex !important; }
 
 <div id="loginGate" style="display:none;min-height:calc(100vh - 60px);align-items:center;justify-content:center;text-align:center;padding:28px">
   <div style="max-width:520px">
-    <h2 style="margin:0 0 8px;font-size:24px;letter-spacing:.2px">Jake's Recipe Vault</h2>
+    <h2 style="margin:0 0 8px;font-size:24px;letter-spacing:.2px">Jake's Recipe Book</h2>
     <div class="hint" style="margin:0 0 10px">Sign in to view and edit recipes.</div>
 <div class="hint" style="margin:0 0 14px">First sign-in on a new device requires internet. After that, this device can work offline.</div>
 
@@ -1123,11 +1123,11 @@ window.AUTH = {
 
 <script>
 
-  const LS_KEY = "recipe_vault_data_v3_gallery";
-  const CHECKS_PREFIX = "rv_ing_checks_v1:"; // per-recipe checkbox state
+  const LS_KEY = "recipe_book_data_v3_gallery";
+  const CHECKS_PREFIX = "rb_ing_checks_v1:"; // per-recipe checkbox state
 
   // Per-recipe last-used scaling (saved on this device)
-  const SCALE_STORE_KEY = "rv.scaleById.v1";
+  const SCALE_STORE_KEY = "rb.scaleById.v1";
   
   const $ = (id)=>document.getElementById(id);
 
