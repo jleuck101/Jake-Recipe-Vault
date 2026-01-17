@@ -2326,10 +2326,11 @@ function parseFirstNumberAnywhere(text){
     $("vTitle").textContent = r.title || "(untitled)";
 
     const subBits = [];
-    if(r.cuisine) subBits.push(r.cuisine);
+    if(toList(r.cuisine).length) subBits.push(listToDisplay(r.cuisine));
     if(r.timeMinutes) subBits.push(`${r.timeMinutes} min`);
     if(r.servings) subBits.push(r.servings);
     $("vSub").textContent = subBits.join(" • ");
+
 
     // Hero image
     if(r.imageUrl){
