@@ -610,7 +610,8 @@ body.gated #loginGate { display:flex !important; }
       </div>
 
       <div>
-        <div class="k">Method</div>
+        <div class="k">Equipment</div>
+
         <select id="applianceF"><option value="">Any</option></select>
       </div>
 
@@ -796,7 +797,8 @@ body.gated #loginGate { display:flex !important; }
 
 <div class="two" style="margin-top:10px;">
   <div>
-    <div class="k">Methods</div>
+    <div class="k">Equipment</div>
+
     <input id="eAppliances" placeholder="instant pot, oven" autocomplete="off"/>
     <div class="suggestRow" id="methodSuggestions"></div>
   </div>
@@ -1795,15 +1797,28 @@ return out;
         b.innerHTML = `<span class="dot"></span> cooked ${r.cookedCount}`;
         meta.appendChild(b);
       }
-      if(r.cuisine) meta.appendChild(pill(r.cuisine));
-      if(r.timeMinutes) meta.appendChild(pill(`${r.timeMinutes}m`));
-      if((r.appliances||[]).length) meta.appendChild(pill(r.appliances[0]));
 
-      // Show up to 2 tags on cards (quick glance)
-      if((r.tags||[]).length){
-        meta.appendChild(pill(r.tags[0]));
-        if(r.tags[1]) meta.appendChild(pill(r.tags[1]));
-      }
+      // Card pill order: cuisine, equipment, time, main ingredient, course, then any other tags
+      const seen = new Set();
+      const addPillOnce = (v)=>{
+        const s = String(v||"").trim();
+        if(!s) return;
+        const k = s.toLowerCase();
+        if(seen.has(k)) return;
+        seen.add(k);
+        meta.appendChild(pill(s));
+      };
+
+      if(r.cuisine) addPillOnce(r.cuisine);
+      if((r.appliances||[]).length) addPillOnce(r.appliances[0]); // “Equipment”
+      if(r.timeMinutes) addPillOnce(`${r.timeMinutes}m`);
+
+      for(const mi of toList(r.mainIngredient)) addPillOnce(mi);
+      if(r.course) addPillOnce(r.course);
+
+      for(const t of toList(r.tags)) addPillOnce(t);
+
+
 
 
       body.appendChild(title);
@@ -2277,7 +2292,8 @@ function parseFirstNumberAnywhere(text){
 if(toList(r.base).length) info.appendChild(pill("base: " + listToDisplay(r.base)));
 if(toList(r.mainIngredient).length) info.appendChild(pill("ingredient: " + listToDisplay(r.mainIngredient)));
 
-    if((r.appliances||[]).length) info.appendChild(pill("method: " + r.appliances.join(", ")));
+if((r.appliances||[]).length) info.appendChild(pill("equipment: " + r.appliances.join(", ")));
+
 
     if(r.dishesCount != null) info.appendChild(pill("dishes: " + r.dishesCount));
     if((r.tags||[]).length) info.appendChild(pill("tags: " + r.tags.join(", ")));
