@@ -1498,9 +1498,28 @@ async function processPendingShare(){
     return false;
   }
 
+  // Auto-open a draft once per shared URL (prevents duplicate drafts on reload)
+  const OPENED_SHARE_KEY = "rv.pendingShareOpened.v1";
+  if(localStorage.getItem(OPENED_SHARE_KEY) !== share.url){
+    try{
+      newRecipeFromShare(share.title || "", share.url);
+      localStorage.setItem(OPENED_SHARE_KEY, share.url);
+    }catch(e){
+      console.warn("Draft open failed:", e);
+    }
+  }
+
   try{
-    await window.FB.addInboxUrl({ url: share.url, title: share.title, source: "ios" });
+    await window.FB.addInboxUrl({
+      url: String(share.url),
+      title: String(share.title || ""),
+      source: "ios"
+    });
+
     localStorage.removeItem(PENDING_SHARE_KEY);
+// keep OPENED_SHARE_KEY so we don't create duplicate drafts for the same share
+
+
     toast("saved shared link");
     return true;
   }catch(e){
@@ -1509,6 +1528,7 @@ async function processPendingShare(){
     return false;
   }
 }
+
 
 async function captureIncomingShareIfPresent(){
   const share = _readIncomingShare();
@@ -2713,6 +2733,52 @@ async function compressImageFile(file, maxDim=1600, quality=0.72){
     fillEditForm(r);
     toast("new recipe");
   }
+
+    // Create a new recipe draft from an incoming iOS share, and open editor
+    function newRecipeFromShare(shareTitle, shareUrl){
+    const t = Date.now();
+
+    const title = (shareTitle || "").trim() || "New Recipe";
+    const url = (shareUrl || "").trim();
+
+    const r = {
+      id: uid(),
+      title: title,
+      cuisine: "",
+      dishType: "",
+      base: "",
+      mainIngredient: "",
+      equipment: [],
+      timeMinutes: null,
+
+      dishesCount: null,
+      tags: [],
+      cookedCount: 0,
+      lastCookedAt: null,
+      createdAt: t,
+      updatedAt: t,
+      imageUrl: "",
+      sourceUrl: url,
+      servings: "",
+      ingredients: "",
+      directions: "",
+      notes: ""
+    };
+
+    state.recipes.unshift(r);
+    saveLocal();
+    refreshFilterOptions();
+    renderGrid();
+
+    openViewer(r.id);
+    state.editOpen = true;
+    $("editPanel").classList.add("show");
+    $("editToggleBtn").textContent = "Close edit";
+    fillEditForm(r);
+
+    toast("opened draft from share");
+  }
+
 
   /* Download a single-recipe offline page */
   function sanitizeFileName(s){
